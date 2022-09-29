@@ -5,6 +5,7 @@
 #pragma once
 
 #include <emmintrin.h>
+#include <endian.h>
 #include <smmintrin.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -153,7 +154,18 @@ inline std::string string_view_2_string(const StringView& src) {
 inline int compare_string_view(const StringView& src,
                                const StringView& target) {
   auto size = std::min(src.size(), target.size());
-  for (uint32_t i = 0; i < size; i++) {
+  auto batchNum = size & ~(sizeof(uint64_t) - 1);
+  uint32_t i = 0;
+  int64_t ret = 0;
+  for (i = 0; i < batchNum;) {
+    ret = *(uint64_t*)(&src[i]) - *(uint64_t*)(&target[i]);
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+    ret = 0 - ret;
+#endif
+    if (ret) return ret;
+    i += sizeof(uint64_t);
+  }
+  for (; i < size; i++) {
     if (src[i] != target[i]) {
       return (unsigned char)src[i] - (unsigned char)target[i];
     }
